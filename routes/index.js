@@ -1,45 +1,40 @@
 var express = require('express');
 var router = express.Router();
-
-const mysql = require('mysql')
-
-// 创建数据库连接
-const conn = mysql.createConnection({
-    host: 'sh-cynosdbmysql-grp-9jcsu5mm.sql.tencentcdb.com',
-    port: '21681',
-    user: 'root',
-    password: 'Chai826300474',
-    database: 'chrome_plugin'
-});
+var dbConfig = require('../db.config'); 
+const MYSQL = require('mysql')
+var Mysql = require('node-mysql-promise');
+var mysql = Mysql.createConnection(dbConfig);
 
 router.get('/', function (req, res, next) {
-    var sql = `select * from page where url='${req.query.href}'`;
-    conn.query(sql, function (err,result) {
-        if(err){
-            console.log('[SELECT ERROR]:',err.message);
-        }
-        if( result && result.length > 0 ){  
+    mysql.table('page').where(`url = '${req.query.href}'`).select().then(function (result) {
+        if( result && result.length > 0 ){
             const page = result[0];
-            var sql1 = `select * from interfce where pageId=${page.key}`;
-            conn.query(sql1, function (err,result) {
+            mysql.table('interfce').where(`pageId = '${page.key}'`).select().then(data => {
                 res.json(
                     {
                         success: true,
-                        data:result,
+                        data:data,
                         message: '查询成功'
                     }
                 );
+            }).catch(e => {
+                res.json(
+                    {
+                        success: true,
+                        data:null,
+                        message: e
+                    }
+                );
             })
-        }else{
-            res.json(
-                {
-                    success: false,
-                    data:null,
-                    message: '暂无数据'
-                }
-            );
         }
-        
+    }).catch(function (e) {
+        res.json(
+            {
+                success: true,
+                data:null,
+                message: e
+            }
+        );
     });
 });
 
@@ -49,11 +44,25 @@ router.post('/', function (req, res, next) {
     list.forEach(item => {
         const tableName = item.pageData.tableName;
         if(tableName){
-            const values = [item.method,item.url,item.params,item.content,item.other_params];
-            conn.query(`select * from information_schema.tables where table_name ='${tableName}'`,function(err,result){
+            const values = {
+                method:item.method,
+                url:item.url,
+                params:item.params,
+                content:item.content,
+                other_params:item.other_params
+            }
+            mysql.query(`select * from information_schema.tables where table_name ='${tableName}'`).then(function (result) {
                 if( result && result.length > 0 ){
                     createRecord(values,req, res, next,tableName);
                 }else{
+                    const conn = MYSQL.createConnection({
+                        host: 'sh-cynosdbmysql-grp-9jcsu5mm.sql.tencentcdb.com',
+                        port: '21681',
+                        user: 'root',
+                        password: 'Chai826300474',
+                        database: 'chrome_plugin'
+                    });
+                    conn.connect();
                     conn.query("CREATE TABLE "+ tableName +" (`method` varchar(255) DEFAULT NULL,`url` varchar(255) DEFAULT NULL,`params` varchar(255) DEFAULT NULL,`content` longtext,`other_params` varchar(255) DEFAULT NULL,`key` int(255) NOT NULL AUTO_INCREMENT,`create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`key`)) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8",
                         function(err,result){
                             if( err ){
@@ -62,24 +71,15 @@ router.post('/', function (req, res, next) {
                                 createRecord(values,req, res, next,tableName);
                             }
                     })
-                }   
+                }
             })
         }
     });
 });
 
 function createRecord(values,req, res, next,tableName){
-    conn.query('INSERT INTO '+ tableName +'(`method`, `url`, `params`,`content`,`other_params`) VALUES (?,?,?,?,?)',values, function (err,result) {
-        console.log(err,result);
-        if(err){
-            res.json(
-                {
-                    success: false,
-                    data:null,
-                    message: err.message
-                }
-            );
-        }
+    mysql.table(tableName).add(values).then(function (insertId) {
+        console.log(insertId);
         res.json(
             {
                 success: true,
@@ -87,7 +87,14 @@ function createRecord(values,req, res, next,tableName){
                 message: '添加成功'
             }
         );
-    });
+    }).catch(function (err) {
+            res.json(
+                {
+                    success: false,
+                    data:null,
+                    message: err
+                }
+            );
+    })
 }
-
 module.exports = router;
