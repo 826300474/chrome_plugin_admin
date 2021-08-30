@@ -43,7 +43,7 @@ router.get('/', function (req, res, next) {
 router.post('/', function (req, res, next) {
     const list = JSON.parse(req.body.data);
 
-    list.forEach(item => {
+    list.forEach((item,index) => {
         const tableName = item.pageData.tableName;
         if(tableName){
             const values = {
@@ -55,7 +55,7 @@ router.post('/', function (req, res, next) {
             }
             mysql.query(`select * from information_schema.tables where table_name ='${tableName}'`).then(function (result) {
                 if( result && result.length > 0 ){
-                    createRecord(values,req, res, next,tableName);
+                    createRecord(values,req, res, next,tableName,index);
                 }else{
                     const conn = MYSQL.createConnection(dbConfig);
                     conn.connect();
@@ -64,7 +64,7 @@ router.post('/', function (req, res, next) {
                             if( err ){
 
                             }else{
-                                createRecord(values,req, res, next,tableName);
+                                createRecord(values,req, res, next,tableName,index);
                             }
                     })
                 }
@@ -80,13 +80,15 @@ function createRecord(values,req, res, next,tableName){
         other_params:values.other_params
     }
     mysql.table(tableName).thenAdd(values,where).then(function (insertId) {
-        res.json(
-            {
-                success: true,
-                data:insertId,
-                message: '添加成功'
-            }
-        );
+        if( index === 0 ){
+            res.json(
+                {
+                    success: true,
+                    data:insertId,
+                    message: '添加成功'
+                }
+            );
+        }
     }).catch(function (err) {
         console.log(err);
             res.json(
