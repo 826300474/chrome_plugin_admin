@@ -18,6 +18,7 @@ router.get('/', function (req, res, next) {
                     }
                 );
             }).catch(e => {
+                console.log(e);
                 res.json(
                     {
                         success: true,
@@ -28,6 +29,7 @@ router.get('/', function (req, res, next) {
             })
         }
     }).catch(function (e) {
+        console.log(e);
         res.json(
             {
                 success: true,
@@ -55,13 +57,7 @@ router.post('/', function (req, res, next) {
                 if( result && result.length > 0 ){
                     createRecord(values,req, res, next,tableName);
                 }else{
-                    const conn = MYSQL.createConnection({
-                        host: 'sh-cynosdbmysql-grp-9jcsu5mm.sql.tencentcdb.com',
-                        port: '21681',
-                        user: 'root',
-                        password: 'Chai826300474',
-                        database: 'chrome_plugin'
-                    });
+                    const conn = MYSQL.createConnection(dbConfig);
                     conn.connect();
                     conn.query("CREATE TABLE "+ tableName +" (`method` varchar(255) DEFAULT NULL,`url` varchar(255) DEFAULT NULL,`params` varchar(255) DEFAULT NULL,`content` longtext,`other_params` varchar(255) DEFAULT NULL,`key` int(255) NOT NULL AUTO_INCREMENT,`create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`key`)) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8",
                         function(err,result){
@@ -78,16 +74,21 @@ router.post('/', function (req, res, next) {
 });
 
 function createRecord(values,req, res, next,tableName){
-    mysql.table(tableName).add(values).then(function (insertId) {
-        console.log(insertId);
+    var where = {
+        params:values.params,
+        content:values.content,
+        other_params:values.other_params
+    }
+    mysql.table(tableName).thenAdd(values,where).then(function (insertId) {
         res.json(
             {
                 success: true,
-                data:result,
+                data:insertId,
                 message: '添加成功'
             }
         );
     }).catch(function (err) {
+        console.log(err);
             res.json(
                 {
                     success: false,
